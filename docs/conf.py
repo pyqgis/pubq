@@ -20,8 +20,8 @@ from recommonmark.transform import AutoStructify
 now = datetime.datetime.now()
 sys.path.insert(0, os.path.abspath('..'))
 
-from pubq.__version__ import __version__
-from pubq.constants import __author__, __package_name__
+from pubqlib.__version__ import __version__
+from pubqlib.constants import __author__, __package_name__
 
 
 # -- Project information -----------------------------------------------------
