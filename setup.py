@@ -13,12 +13,13 @@ from setuptools import find_packages, setup, Command
 
 # Package meta-data.
 NAME = 'pubq'
-DESCRIPTION = '.'
+DESCRIPTION = 'A publishing tool for qgis plugins written in python.'
 URL = 'https://github.com/pyqgis/%s' % NAME
 EMAIL = 'nicu.tofan@gmail.com'
 AUTHOR = 'Nicu Tofan'
 REQUIRES_PYTHON = '>=3.6.0'
 VERSION = None
+project_slug = 'pubqlib'
 
 # What packages are required for this module to be executed?
 REQUIRED = [
@@ -60,7 +61,6 @@ except FileNotFoundError:
 # Load the package's __version__.py module as a dictionary.
 about = {}
 if not VERSION:
-    project_slug = NAME.lower().replace("-", "_").replace(" ", "_")
     with open(os.path.join(here, project_slug, '__version__.py')) as f:
         exec(f.read(), about)
 else:
