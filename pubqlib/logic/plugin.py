@@ -10,7 +10,9 @@ import os
 
 import configparser
 
-from pubqlib.logic.module import PubModule
+from .module import PubModule
+from .qrc_files import PubQrc
+from .ui_files import PubUi
 
 logger = logging.getLogger('pubq.plugin')
 
@@ -92,6 +94,9 @@ class PubPlugin(object):
         self.config_obj = configparser.ConfigParser(
             comment_prefixes='/', allow_no_value=True)
         self.modules = [] if modules is None else modules
+        self.extra_files = []
+        self.ui_files = []
+        self.qrc_files = []
 
         # ---- Metadata ----
         self.about = about
@@ -130,6 +135,8 @@ class PubPlugin(object):
         Arguments:
             path (str):
                 The path towards the plugin.
+            source_py (bool):
+                Set to true to force collection of source files.
         """
         self.source_path = path
 
@@ -148,6 +155,9 @@ class PubPlugin(object):
         modules = self.parse_init(init_path)
 
         self.modules = self.load_modules(path, modules, source_py=source_py)
+        self.extra_files = self.load_extra_files(path)
+        self.ui_files = self.load_ui_files(path)
+        self.qrc_files = self.load_qrc_files(path)
 
     def has_required_metadata(self):
         """
@@ -312,3 +322,116 @@ class PubPlugin(object):
             m.collect_py_files(source_py=source_py)
             result.append(m)
         return result
+
+    def load_extra_files(self, path):
+        """
+        Creates modules instances and reads their files.
+
+        Attributes:
+            path (str):
+                The path of the package.
+
+        Returns:
+            A list of files.
+        """
+        result = []
+        include_files = self.config_obj.get('extra', 'files', fallback='')
+        include_dirs = self.config_obj.get('extra', 'directories', fallback='')
+
+        for file in include_files.split("\n"):
+            file = os.path.join(path, file.strip())
+            if os.path.isfile(file):
+                result.append(file)
+            else:
+                logger.error("Extra file does not exist: %s", file)
+
+        for directory in include_dirs.split("\n"):
+            file = os.path.join(path, directory.strip())
+            if os.path.isdir(file):
+                for root, dirs, files in os.walk(".", topdown=False):
+                    for name in files:
+                        result.append(os.path.join(root, name))
+            else:
+                logger.error("Extra directory does not exist: %s", file)
+
+        return result
+
+    def load_ui_files(self, path):
+        """
+        Finds ui files.
+
+        Attributes:
+            path (str):
+                The path of the package.
+
+        Returns:
+            A list of files.
+        """
+        result = []
+        include_ui = self.config_obj.get('extra', 'ui', fallback='')
+
+        for file in include_ui.split("\n"):
+            file = os.path.join(path, file.strip())
+            if os.path.isfile(file):
+                result.append(file)
+            elif os.path.isdir(file):
+                for ui_file in os.listdir(file):
+                    if ui_file.endswith('.ui') or ui_file.endswith('.UI'):
+                        result.append(PubUi(os.path.join(file, ui_file)))
+            else:
+                logger.error("Extra file does not exist: %s", file)
+
+        return result
+
+    def load_qrc_files(self, path):
+        """
+        Finds ui files.
+
+        Attributes:
+            path (str):
+                The path of the package.
+
+        Returns:
+            A list of files.
+        """
+        result = []
+        include_ui = self.config_obj.get('extra', 'qrc', fallback='')
+
+        for file in include_ui.split("\n"):
+            file = os.path.join(path, file.strip())
+            if os.path.isfile(file):
+                result.append(file)
+            elif os.path.isdir(file):
+                for ui_file in os.listdir(file):
+                    if ui_file.endswith('.qrc') or ui_file.endswith('.QRC'):
+                        result.append(PubQrc(os.path.join(file, ui_file)))
+            else:
+                logger.error("Extra file does not exist: %s", file)
+
+        return result
+
+    def collect_files_to_deploy(self):
+        """ Creates a single list of all files to be copied. """
+        result = []
+        for module in self.modules:
+            result.extend(module.files)
+        result.extend(self.extra_files)
+        for ui_file in self.ui_files:
+            result.append(ui_file.path_out)
+        for qrc_file in self.qrc_files:
+            result.append(qrc_file.path_out)
+        return result
+
+    def deploy(self, target):
+        """
+        Copies files to target directory.
+
+        Arguments:
+            target (str):
+                A directory path.
+        """
+        if not os.path.isdir(target):
+            os.makedirs(target)
+
+        for file in self.collect_files_to_deploy():
+            shutil.copy()
