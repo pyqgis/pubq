@@ -7,10 +7,12 @@ from __future__ import print_function
 
 import logging
 
+from .file_base import PubFile
+
 logger = logging.getLogger('PubUi')
 
 
-class PubUi(object):
+class PubUi(PubFile):
     """
     This class .
 
@@ -18,16 +20,14 @@ class PubUi(object):
 
     """
 
-    def __init__(self, path_in, path_out=None):
+    def __init__(self, *args, **kwargs):
         """
         Constructor.
 
         Arguments:
 
         """
-        super().__init__()
-        self.path_in = path_in
-        self.path_out = path_out
+        super().__init__(*args, **kwargs)
 
     def __str__(self):
         """ Represent this object as a human-readable string. """
@@ -36,3 +36,10 @@ class PubUi(object):
     def __repr__(self):
         """ Represent this object as a python constructor. """
         return 'PubUi()'
+
+    def compile(self, toolset, force=False):
+        """ Create path_out file from path_in. """
+        if not self.use_compiled:
+            return
+        toolset.compile_ui_file(
+            in_file=self.path_in, out_file=self.path_out)

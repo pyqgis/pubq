@@ -7,6 +7,7 @@ from __future__ import print_function
 
 import logging
 import os
+import shutil
 
 import configparser
 
@@ -228,7 +229,7 @@ class PubPlugin(object):
 
     def read_metadata(self, in_file):
         """ Reads the metadata.txt file. """
-        with open(in_file, 'w') as fin:
+        with open(in_file, 'r') as fin:
             self.config_obj.read_file(fin)
 
         self.about = self.config_obj.get(
@@ -264,7 +265,7 @@ class PubPlugin(object):
             'general', 'qgisMinimumVersion', fallback=self.qgis_minimum_version)
         self.repository = self.config_obj.get(
             'general', 'repository', fallback=self.repository)
-        self.tags = [tag.trim for tag in self.config_obj.get(
+        self.tags = [tag.strip() for tag in self.config_obj.get(
             'general', 'tags', fallback=', '.join(self.tags)).split(',')]
         self.tracker = self.config_obj.get(
             'general', 'tracker', fallback=self.tracker)
@@ -317,8 +318,11 @@ class PubPlugin(object):
         """
         result = []
         for module_name in modules:
+            if module_name.startswith('.'):
+                module_name = module_name[1:]
+            parts = module_name.split('.')
             m = PubModule(
-                    name=module_name, path=os.path.join(path, module_name))
+                    name=module_name, path=os.path.join(path, *parts))
             m.collect_py_files(source_py=source_py)
             result.append(m)
         return result
@@ -339,20 +343,23 @@ class PubPlugin(object):
         include_dirs = self.config_obj.get('extra', 'directories', fallback='')
 
         for file in include_files.split("\n"):
-            file = os.path.join(path, file.strip())
-            if os.path.isfile(file):
-                result.append(file)
-            else:
-                logger.error("Extra file does not exist: %s", file)
+            if len(file) > 0:
+                file = os.path.join(path, file.strip())
+                if os.path.isfile(file):
+                    result.append(file)
+                else:
+                    logger.error("Extra file does not exist: %s", file)
 
         for directory in include_dirs.split("\n"):
-            file = os.path.join(path, directory.strip())
-            if os.path.isdir(file):
-                for root, dirs, files in os.walk(".", topdown=False):
-                    for name in files:
-                        result.append(os.path.join(root, name))
-            else:
-                logger.error("Extra directory does not exist: %s", file)
+            directory = directory.strip()
+            if len(directory) > 0:
+                file = os.path.join(path, directory)
+                if os.path.isdir(file):
+                    for root, dirs, files in os.walk(".", topdown=False):
+                        for name in files:
+                            result.append(os.path.join(root, name))
+                else:
+                    logger.error("Extra directory does not exist: %s", file)
 
         return result
 
@@ -371,15 +378,17 @@ class PubPlugin(object):
         include_ui = self.config_obj.get('extra', 'ui', fallback='')
 
         for file in include_ui.split("\n"):
-            file = os.path.join(path, file.strip())
-            if os.path.isfile(file):
-                result.append(file)
-            elif os.path.isdir(file):
-                for ui_file in os.listdir(file):
-                    if ui_file.endswith('.ui') or ui_file.endswith('.UI'):
-                        result.append(PubUi(os.path.join(file, ui_file)))
-            else:
-                logger.error("Extra file does not exist: %s", file)
+            file = file.strip()
+            if len(file) > 0:
+                file = os.path.join(path, )
+                if os.path.isfile(file):
+                    result.append(file)
+                elif os.path.isdir(file):
+                    for ui_file in os.listdir(file):
+                        if ui_file.endswith('.ui') or ui_file.endswith('.UI'):
+                            result.append(PubUi(os.path.join(file, ui_file)))
+                else:
+                    logger.error("Extra file does not exist: %s", file)
 
         return result
 
@@ -398,40 +407,82 @@ class PubPlugin(object):
         include_ui = self.config_obj.get('extra', 'qrc', fallback='')
 
         for file in include_ui.split("\n"):
-            file = os.path.join(path, file.strip())
-            if os.path.isfile(file):
-                result.append(file)
-            elif os.path.isdir(file):
-                for ui_file in os.listdir(file):
-                    if ui_file.endswith('.qrc') or ui_file.endswith('.QRC'):
-                        result.append(PubQrc(os.path.join(file, ui_file)))
-            else:
-                logger.error("Extra file does not exist: %s", file)
+            file = file.strip()
+            if len(file) > 0:
+                file = os.path.join(path, file)
+                if os.path.isfile(file):
+                    result.append(file)
+                elif os.path.isdir(file):
+                    for ui_file in os.listdir(file):
+                        if ui_file.endswith('.qrc') or ui_file.endswith('.QRC'):
+                            result.append(PubQrc(os.path.join(file, ui_file)))
+                else:
+                    logger.error("Extra file does not exist: %s", file)
 
         return result
+
+    def compile(self, toolset, force=False):
+        """ Creates output files from input files. """
+        for module in self.modules:
+            module.compile(toolset=toolset, force=force)
+        for ui_file in self.ui_files:
+            ui_file.compile(toolset=toolset, force=force)
+        for qrc_file in self.qrc_files:
+            qrc_file.compile(toolset=toolset, force=force)
 
     def collect_files_to_deploy(self):
         """ Creates a single list of all files to be copied. """
         result = []
         for module in self.modules:
-            result.extend(module.files)
+            for file in module.files:
+                result.append(file.copy_target)
         result.extend(self.extra_files)
         for ui_file in self.ui_files:
-            result.append(ui_file.path_out)
+            result.append(ui_file.copy_target)
         for qrc_file in self.qrc_files:
-            result.append(qrc_file.path_out)
+            result.append(qrc_file.copy_target)
         return result
 
-    def deploy(self, target):
+    def deploy(self, target, clear_opt='error'):
         """
         Copies files to target directory.
 
         Arguments:
             target (str):
                 A directory path.
+            clear_opt (str):
+                What to do when the target directory exists and is not empty:
+                - *error*: show an error and exit
+                - *clear*: remove all files and directories
+                - *overwrite*: replace each file but keep other files.
         """
         if not os.path.isdir(target):
             os.makedirs(target)
+        else:
+            has_files = False
+            for _ in os.listdir(target):
+                has_files = True
+            if has_files:
+                if clear_opt == 'error':
+                    logger.error("Path %r exists nad is not empty", target)
+                    return
+                if clear_opt == 'clear':
+                    shutil.rmtree(target)
+                    os.mkdir(target)
+                    clear_opt = False
+                elif clear_opt == 'overwrite':
+                    clear_opt = True
+                else:
+                    raise ValueError
 
         for file in self.collect_files_to_deploy():
-            shutil.copy()
+            rel_path = os.path.relpath(file, self.source_path)
+            output_path = os.path.join(target, rel_path)
+            if clear_opt and os.path.isfile(output_path):
+                os.remove(output_path)
+
+            out_base, file_name = os.path.split(output_path)
+            if not os.path.isdir(out_base):
+                os.mkdir(out_base)
+
+            shutil.copy(file, output_path)

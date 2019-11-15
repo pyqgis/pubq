@@ -5,16 +5,20 @@ Contains the definition of the PubModule class.
 from __future__ import unicode_literals
 from __future__ import print_function
 
+import compileall
 import logging
 import os
 import pkgutil
+
+from .py_files import PubPy
+
 
 logger = logging.getLogger('pubq.module')
 
 
 class PubModule(object):
     """
-    This class .
+    A module inside the package.
 
     Attributes:
         name (str):
@@ -77,34 +81,13 @@ class PubModule(object):
 
             if not any(regex.match(modname) for regex in self.exclude_modules):
                 fs_name = os.path.join(pkg_path, modname)
-                fs_path = module_to_file(fs_name, source_py)
-                if fs_path is not None:
-                    self.files.append(fs_path)
-                    if os.path.isdir(fs_name):
-                        self.collect_py_files(
-                            source_py=source_py,
-                            pkg_name='%s.%s' % (pkg_name, modname),
-                            pkg_path=fs_name)
+                self.files.append(PubPy.module_to_file(fs_name, source_py))
+                if os.path.isdir(fs_name):
+                    self.collect_py_files(
+                        source_py=source_py,
+                        pkg_name='%s.%s' % (pkg_name, modname),
+                        pkg_path=fs_name)
 
-
-def module_to_file(path, source_py):
-    """ Get the file for a module name. """
-
-    if os.path.isdir(path):
-        if not source_py:
-            tmp = os.path.join(path, "__init__.pyc")
-            if os.path.isfile(tmp):
-                return tmp
-        tmp = os.path.join(path, "__init__.py")
-        if os.path.isfile(tmp):
-            return tmp
-    else:
-        if not source_py:
-            tmp = path + ".pyc"
-            if os.path.isfile(tmp):
-                return tmp
-        tmp = path + ".py"
-        if os.path.isfile(tmp):
-            return tmp
-
-    return None
+    def compile(self, toolset, force=False):
+        """ Create path_out file from path_in. """
+        compileall.compile_dir(dir=self.path, legacy=True)
