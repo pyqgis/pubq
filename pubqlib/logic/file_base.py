@@ -22,7 +22,7 @@ class PubFile(object):
             The path of the compiled file.
     """
 
-    def __init__(self, path_in=None, path_out=None):
+    def __init__(self, path_in=None, path_out=None, use_compiled=True):
         """
         Constructor.
 
@@ -35,20 +35,28 @@ class PubFile(object):
         super().__init__()
         self.path_in = path_in
         self.path_out = path_out
-        self.use_compiled = True
+        self.use_compiled = use_compiled
 
     def __str__(self):
         """ Represent this object as a human-readable string. """
-        return 'PubFile()'
+        return 'PubFile("%s")' % self.path_in
 
     def __repr__(self):
         """ Represent this object as a python constructor. """
-        return 'PubFile()'
+        return 'PubFile(path_in=%r, path_out=%r, use_compiled=%r)' % (
+            self.path_in,
+            self.path_out,
+            self.use_compiled,
+        )
 
     @property
     def copy_target(self):
         """ The file that should be copied by the deploy process. """
         return self.path_out if self.use_compiled else self.path_in
+
+    def default_output(self):
+        """ Computes the default output file. """
+        raise NotImplementedError
 
     def compile(self, toolset, force=False):
         """ Create path_out file from path_in. """

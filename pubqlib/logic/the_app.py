@@ -43,15 +43,32 @@ class TheApp(object):
         """ Represent this object as a python constructor. """
         return 'TheApp()'
 
-    def install(self, sources, force_recompile=False):
+    def install(self, sources, force_recompile=False, clear_opt='error'):
         """ The install command is implemented here. """
+        logger.debug("Installing %r (forced=%r, clear_opt=%r",
+                     sources, force_recompile, clear_opt)
+        if not os.path.isdir(self.destination):
+            logger.debug("Destination %s does not exist; creating ...",
+                         self.destination)
+            os.makedirs(self.destination)
 
         for source in sources:
             source = os.path.abspath(source)
             plugin = PubPlugin()
             plugin.init_from_directory(source, source_py=self.source_py)
             self.plugins.append(plugin)
+        logger.debug("Collected %d plugins", len(self.plugins))
 
         for plugin in self.plugins:
             plugin.compile(toolset=self.toolset, force=force_recompile)
-            plugin.deploy(self.destination)
+            plugin.deploy(self.destination, clear_opt=clear_opt)
+
+        logger.debug("Installing done")
+
+    def get_plugin_directory(self):
+        home = os.path.expanduser('~')
+        qgis2 = os.path.join('.qgis2', 'python', 'plugins')
+        self.destination = os.path.join(home, qgis2)
+        logger.debug("detected qgis plugin directory is at %s",
+                     self.destination)
+        return self.destination

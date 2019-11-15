@@ -92,8 +92,10 @@ class PubPlugin(object):
         """
         super().__init__()
         self.source_path = source_path
+        self.target_name = None
+
         self.config_obj = configparser.ConfigParser(
-            comment_prefixes='/', allow_no_value=True)
+            allow_no_value=True)
         self.modules = [] if modules is None else modules
         self.extra_files = []
         self.ui_files = []
@@ -139,7 +141,9 @@ class PubPlugin(object):
             source_py (bool):
                 Set to true to force collection of source files.
         """
+        logger.debug("Initializing plugin from directory %s", path)
         self.source_path = path
+        self.target_name = os.path.split(path)[1]
 
         metadata_path = os.path.join(path, 'metadata.txt')
         if not os.path.isfile(metadata_path):
@@ -185,7 +189,10 @@ class PubPlugin(object):
         Saves the attributes to config object.
         """
         if not self.has_required_metadata():
+            logger.debug("will not fill in config object with metadata "
+                         "because required fields are missing")
             return False
+
         self.config_obj.set(
             'general', 'about', self.about)
         self.config_obj.set(
@@ -225,10 +232,13 @@ class PubPlugin(object):
             'general', 'tracker', self.tracker)
         self.config_obj.set(
             'general', 'version', self.version)
+
+        logger.debug("config object has been updated with metadata")
         return True
 
     def read_metadata(self, in_file):
         """ Reads the metadata.txt file. """
+        logger.debug("reading metadata from %s", in_file)
         with open(in_file, 'r') as fin:
             self.config_obj.read_file(fin)
 
@@ -272,13 +282,39 @@ class PubPlugin(object):
         self.version = self.config_obj.get(
             'general', 'version', fallback=self.version)
 
+        logger.debug("about = %r", self.about)
+        logger.debug("author = %r", self.author)
+        logger.debug("category = %r", self.category)
+        logger.debug("changelog = %r", self.changelog)
+        logger.debug("deprecated = %r", self.deprecated)
+        logger.debug("description = %r", self.description)
+        logger.debug("email = %r", self.email)
+        logger.debug("experimental = %r", self.experimental)
+        logger.debug("has_processing_provider = %r", self.has_processing_provider)
+        logger.debug("homepage = %r", self.homepage)
+        logger.debug("icon = %r", self.icon)
+        logger.debug("name = %r", self.name)
+        logger.debug("plugin_dependencies = %r", self.plugin_dependencies)
+        logger.debug("qgis_maximum_version = %r", self.qgis_maximum_version)
+        logger.debug("qgis_minimum_version = %r", self.qgis_minimum_version)
+        logger.debug("repository = %r", self.repository)
+        logger.debug("tags = %r", self.tags)
+        logger.debug("tracker = %r", self.tracker)
+        logger.debug("version = %r", self.version)
+
+        logger.debug("metadata has been read")
+
     def write_metadata(self, out_file):
         """ Writes the metadata.txt file. """
+
         if not self.to_metadata():
+            logger.debug("Will not write metadata to %s because "
+                         "to_metadata failed", out_file)
             return
 
         with open(out_file, 'w') as fout:
             self.config_obj.write(fout)
+        logger.debug("Metadata was written to %s", out_file)
 
     def parse_init(self, init_path):
         """
@@ -291,9 +327,10 @@ class PubPlugin(object):
         Returns:
             The list of modules detected inside the file.
         """
+        logger.debug("parsing %s", init_path)
         b_inside = False
         modules =[]
-        with open(init_path, 'r') as fin:
+        with open(init_path, 'r', encoding="utf-8") as fin:
             for line in fin:
                 line = line.strip()
                 if 'classFactory' in line:
@@ -301,6 +338,8 @@ class PubPlugin(object):
                 elif b_inside:
                     if line.startswith('from ') and ' import ' in line:
                         modules.append(line[5:line.find(' import ')].strip())
+
+        logger.debug("parsed %s and found %d modules", init_path, len(modules))
         return modules
 
     def load_modules(self, path, modules, source_py):
@@ -316,6 +355,7 @@ class PubPlugin(object):
         Returns:
             A list of PubModule instances.
         """
+        logger.debug("loading %d modules in %r", len(modules), path)
         result = []
         for module_name in modules:
             if module_name.startswith('.'):
@@ -325,6 +365,7 @@ class PubPlugin(object):
                     name=module_name, path=os.path.join(path, *parts))
             m.collect_py_files(source_py=source_py)
             result.append(m)
+        logger.debug("created %d modules", len(result))
         return result
 
     def load_extra_files(self, path):
@@ -338,14 +379,20 @@ class PubPlugin(object):
         Returns:
             A list of files.
         """
+        logger.debug("loading extra files in %r", path)
         result = []
+
         include_files = self.config_obj.get('extra', 'files', fallback='')
+        logger.debug("include_files = %r", include_files)
+
         include_dirs = self.config_obj.get('extra', 'directories', fallback='')
+        logger.debug("include_dirs = %r", include_dirs)
 
         for file in include_files.split("\n"):
             if len(file) > 0:
                 file = os.path.join(path, file.strip())
                 if os.path.isfile(file):
+                    logger.log(1, "- %s", file)
                     result.append(file)
                 else:
                     logger.error("Extra file does not exist: %s", file)
@@ -357,10 +404,13 @@ class PubPlugin(object):
                 if os.path.isdir(file):
                     for root, dirs, files in os.walk(".", topdown=False):
                         for name in files:
-                            result.append(os.path.join(root, name))
+                            to_add = os.path.join(root, name)
+                            logger.log(1, "- %s", to_add)
+                            result.append(to_add)
                 else:
                     logger.error("Extra directory does not exist: %s", file)
 
+        logger.debug("found %d extra files", len(result))
         return result
 
     def load_ui_files(self, path):
@@ -374,6 +424,7 @@ class PubPlugin(object):
         Returns:
             A list of files.
         """
+        logger.debug("loading .ui files in %r", path)
         result = []
         include_ui = self.config_obj.get('extra', 'ui', fallback='')
 
@@ -390,6 +441,7 @@ class PubPlugin(object):
                 else:
                     logger.error("Extra file does not exist: %s", file)
 
+        logger.debug("found %d .ui files", len(result))
         return result
 
     def load_qrc_files(self, path):
@@ -403,6 +455,7 @@ class PubPlugin(object):
         Returns:
             A list of files.
         """
+        logger.debug("loading .qrc files in %r", path)
         result = []
         include_ui = self.config_obj.get('extra', 'qrc', fallback='')
 
@@ -419,28 +472,37 @@ class PubPlugin(object):
                 else:
                     logger.error("Extra file does not exist: %s", file)
 
+        logger.debug("found %d .qrc files", len(result))
         return result
 
     def compile(self, toolset, force=False):
         """ Creates output files from input files. """
-        for module in self.modules:
-            module.compile(toolset=toolset, force=force)
+        logger.debug("plugin %s is being compiled ...", self.name)
         for ui_file in self.ui_files:
             ui_file.compile(toolset=toolset, force=force)
         for qrc_file in self.qrc_files:
             qrc_file.compile(toolset=toolset, force=force)
+        for module in self.modules:
+            module.compile(toolset=toolset, force=force)
+        logger.debug("plugin %s was compiled", self.name)
 
     def collect_files_to_deploy(self):
         """ Creates a single list of all files to be copied. """
+        logger.debug("collecting files to deploy...")
         result = []
+
         for module in self.modules:
             for file in module.files:
                 result.append(file.copy_target)
+
         result.extend(self.extra_files)
+
         for ui_file in self.ui_files:
             result.append(ui_file.copy_target)
         for qrc_file in self.qrc_files:
             result.append(qrc_file.copy_target)
+
+        logger.debug("collected %d files to deploy", len(result))
         return result
 
     def deploy(self, target, clear_opt='error'):
@@ -456,33 +518,48 @@ class PubPlugin(object):
                 - *clear*: remove all files and directories
                 - *overwrite*: replace each file but keep other files.
         """
+        target = os.path.join(target, self.target_name)
+        logger.debug("deploying plugin %s to %s", self.name, target)
+
         if not os.path.isdir(target):
+            logger.debug("target does not exist; creating...")
             os.makedirs(target)
         else:
             has_files = False
             for _ in os.listdir(target):
                 has_files = True
+
             if has_files:
+                logger.debug("target exists and has files")
                 if clear_opt == 'error':
-                    logger.error("Path %r exists nad is not empty", target)
+                    logger.error("Path %r exists and is not empty", target)
                     return
                 if clear_opt == 'clear':
+                    logger.debug("all files in %s are being deleted", target)
                     shutil.rmtree(target)
                     os.mkdir(target)
                     clear_opt = False
                 elif clear_opt == 'overwrite':
+                    logger.debug("files with same name will be overwritten")
                     clear_opt = True
                 else:
                     raise ValueError
+            else:
+                logger.debug("target exists but has no files")
 
         for file in self.collect_files_to_deploy():
             rel_path = os.path.relpath(file, self.source_path)
             output_path = os.path.join(target, rel_path)
             if clear_opt and os.path.isfile(output_path):
+                logger.debug("removing %r", output_path)
                 os.remove(output_path)
 
             out_base, file_name = os.path.split(output_path)
             if not os.path.isdir(out_base):
+                logger.debug("creating directory %r", out_base)
                 os.mkdir(out_base)
 
+            logger.debug("copying %s to %s", file, output_path)
             shutil.copy(file, output_path)
+
+        logger.debug("plugin %s has been deployed to %s", self.name, target)

@@ -46,6 +46,11 @@ class Toolset(object):
         """ Initialize the paths from arguments. """
         self.rc_compiler = args.rc_compiler
         self.ui_compiler = args.ui_compiler
+        logger.debug("rc_compiler: %r", self.rc_compiler)
+        logger.debug("ui_compiler: %r", self.ui_compiler)
+        logger.debug("lupdate: %r", self.lupdate)
+        logger.debug("lrelease: %r", self.lrelease)
+        logger.debug("zip_tool: %r", self.zip_tool)
 
     def prepare_parser(self, parser):
         parser.add_argument(
@@ -59,6 +64,7 @@ class Toolset(object):
 
     def run(self, command, *arguments):
         """ Executes an outside command. """
+        logger.debug("executing %s (%r)", command, arguments)
         subprocess.check_call([command, *arguments])
 
     def compile_ui_file(self, in_file, out_file):
@@ -93,9 +99,12 @@ def find_app(names):
                 return app
         else:
             for path in os.environ["PATH"].split(os.pathsep):
+                logger.log(1, "searching %s in %s", app, path)
                 exe_file = os.path.join(path, app)
                 for candidate in ext_candidates(exe_file):
                     if is_exe(candidate):
+                        logger.debug("found %s for name %r", candidate, names)
                         return candidate
 
+    logger.debug("could not find an executable for command %r", names)
     return None

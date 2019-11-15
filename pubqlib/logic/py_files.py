@@ -34,11 +34,15 @@ class PubPy(PubFile):
 
     def __str__(self):
         """ Represent this object as a human-readable string. """
-        return 'PubPy()'
+        return 'PubPy("%s")' % self.path_in
 
     def __repr__(self):
         """ Represent this object as a python constructor. """
-        return 'PubPy()'
+        return 'PubPy(path_in=%r, path_out=%r, use_compiled=%r)' % (
+            self.path_in,
+            self.path_out,
+            self.use_compiled,
+        )
 
     @staticmethod
     def module_to_file(path, source_py):
@@ -63,5 +67,6 @@ class PubPy(PubFile):
             result.path_in = path + ".py"
             result.path_out = path + ".pyc"
         result.use_compiled = not source_py
+        logger.debug("Constructed %r", result)
         return result
 

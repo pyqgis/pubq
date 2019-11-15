@@ -73,7 +73,8 @@ class PubModule(object):
             pkg_path = self.path
         if pkg_name is None:
             pkg_name = self.name
-
+        logger.debug("module %s is collecting files from %s(%r)",
+                     self.name, pkg_name, pkg_path)
         for importer, modname, is_pkg in pkgutil.walk_packages(
                 path=[pkg_path],
                 prefix='',
@@ -87,7 +88,12 @@ class PubModule(object):
                         source_py=source_py,
                         pkg_name='%s.%s' % (pkg_name, modname),
                         pkg_path=fs_name)
+            else:
+                logger.debug("module %r excluded by exclude_modules",
+                             modname)
 
     def compile(self, toolset, force=False):
         """ Create path_out file from path_in. """
+        logger.debug("compiling module %s at %s", self.name, self.path)
         compileall.compile_dir(dir=self.path, legacy=True)
+        logger.debug("done compiling module %s at %s", self.name, self.path)
