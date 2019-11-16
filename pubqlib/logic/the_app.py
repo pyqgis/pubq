@@ -67,8 +67,7 @@ class TheApp(object):
 
     def get_plugin_directory(self):
         home = os.path.expanduser('~')
-        qgis2 = os.path.join('.qgis2', 'python', 'plugins')
-        self.destination = os.path.join(home, qgis2)
+        self.destination = os.path.join(home, '.qgis2', 'python', 'plugins')
         logger.debug("detected qgis plugin directory is at %s",
                      self.destination)
         return self.destination

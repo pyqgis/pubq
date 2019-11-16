@@ -36,6 +36,11 @@ class PubQrc(PubFile):
             self.use_compiled,
         )
 
+    @property
+    def copy_target(self):
+        """ The file that should be copied by the deploy process. """
+        return (self.path_out + 'c') if self.use_compiled else self.path_in
+
     def default_output(self):
         """ Computes the default output file. """
         base_path, file_name = os.path.split(self.path_in)

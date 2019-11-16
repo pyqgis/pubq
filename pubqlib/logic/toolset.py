@@ -28,11 +28,12 @@ class Toolset(object):
 
         """
         super().__init__()
-        self.lupdate = find_app(('pylupdate5', 'pylupdate4'))
-        self.lrelease = find_app(('lrelease', 'lrelease-qt5', 'lrelease-qt4'))
-        self.rc_compiler = find_app(('pyrcc5', 'pyrcc4'))
-        self.ui_compiler = find_app(('pyuic5', 'pyuic4'))
-        self.zip_tool = find_app(('zip', '7z'))
+        self.lupdate = None
+        self.lrelease = None
+        self.rc_compiler = None
+        self.ui_compiler = None
+        self.zip_tool = None
+        self.find()
 
     def __str__(self):
         """ Represent this object as a human-readable string. """
@@ -42,10 +43,26 @@ class Toolset(object):
         """ Represent this object as a python constructor. """
         return 'Toolset()'
 
+    def find(self):
+        """ Locates the tools. """
+        self.lupdate = find_app(('pylupdate5', 'pylupdate4'))
+        self.lrelease = find_app(('lrelease', 'lrelease-qt5', 'lrelease-qt4'))
+        self.rc_compiler = find_app(('pyrcc5', 'pyrcc4'))
+        self.ui_compiler = find_app(('pyuic5', 'pyuic4'))
+        self.zip_tool = find_app(('zip', '7z'))
+        logger.debug("rc_compiler: %r", self.rc_compiler)
+        logger.debug("ui_compiler: %r", self.ui_compiler)
+        logger.debug("lupdate: %r", self.lupdate)
+        logger.debug("lrelease: %r", self.lrelease)
+        logger.debug("zip_tool: %r", self.zip_tool)
+
     def from_args(self, args):
         """ Initialize the paths from arguments. """
-        self.rc_compiler = args.rc_compiler
-        self.ui_compiler = args.ui_compiler
+        if args.rc_compiler is not None and len(args.rc_compiler) > 0:
+            self.rc_compiler = args.rc_compiler
+        if args.ui_compiler is not None and len(args.ui_compiler) > 0:
+            self.ui_compiler = args.ui_compiler
+
         logger.debug("rc_compiler: %r", self.rc_compiler)
         logger.debug("ui_compiler: %r", self.ui_compiler)
         logger.debug("lupdate: %r", self.lupdate)
@@ -64,7 +81,7 @@ class Toolset(object):
 
     def run(self, command, *arguments):
         """ Executes an outside command. """
-        logger.debug("executing %s (%r)", command, arguments)
+        logger.debug("executing %s %r", command, arguments)
         subprocess.check_call([command, *arguments])
 
     def compile_ui_file(self, in_file, out_file):

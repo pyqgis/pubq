@@ -75,6 +75,10 @@ class PubModule(object):
             pkg_name = self.name
         logger.debug("module %s is collecting files from %s(%r)",
                      self.name, pkg_name, pkg_path)
+
+        fs_name = os.path.join(pkg_path, '__init__')
+        self.files.append(PubPy.module_to_file(fs_name, source_py))
+
         for importer, modname, is_pkg in pkgutil.walk_packages(
                 path=[pkg_path],
                 prefix='',

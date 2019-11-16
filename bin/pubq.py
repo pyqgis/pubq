@@ -7,6 +7,8 @@ Usage:
 
     pubq.py command options
 """
+import logging
+
 from appupup.main import main
 
 from pubqlib.commands.install import create_install_command
@@ -30,6 +32,18 @@ def setup_parser(parent_parser):
     create_install_command(subparsers, my_app)
 
 
+def pre_start(arguments, the_app):
+    the_app.toolset.find()
+    logger = logging.getLogger()
+    for handler in logger.handlers:
+        if isinstance(handler, logging.StreamHandler):
+            fmt = logging.Formatter(
+                "%(levelname)s: %(message)s",
+                '%M:%S')
+            handler.setFormatter(fmt)
+            break
+
+
 if __name__ == '__main__':
     from pubqlib.logic.the_app import TheApp
     my_app = TheApp()
@@ -42,4 +56,6 @@ if __name__ == '__main__':
         app_description='A tool for QGis python plugins.',
         app_url=__package_url__,
         parser_constructor=setup_parser,
+        base_package='pubqlib',
+        pre_hook=pre_start,
         the_app=my_app))

@@ -158,8 +158,10 @@ class PubPlugin(object):
                          metadata_path)
             return False
         modules = self.parse_init(init_path)
-
-        self.modules = self.load_modules(path, modules, source_py=source_py)
+        if len(modules) == 0:
+            logger.error("No modules have been found")
+        else:
+            self.modules = self.load_modules(path, modules, source_py=source_py)
         self.extra_files = self.load_extra_files(path)
         self.ui_files = self.load_ui_files(path)
         self.qrc_files = self.load_qrc_files(path)
@@ -193,45 +195,35 @@ class PubPlugin(object):
                          "because required fields are missing")
             return False
 
-        self.config_obj.set(
-            'general', 'about', self.about)
-        self.config_obj.set(
-            'general', 'author', self.author)
-        self.config_obj.set(
-            'general', 'category', self.category)
-        self.config_obj.set(
-            'general', 'changelog', self.changelog)
-        self.config_obj.set(
-            'general', 'deprecated', self.deprecated)
-        self.config_obj.set(
-            'general', 'description', self.description)
-        self.config_obj.set(
-            'general', 'email', self.email)
-        self.config_obj.set(
-            'general', 'experimental', self.experimental)
-        self.config_obj.set(
-            'general', 'hasProcessingProvider',
-            self.has_processing_provider)
-        self.config_obj.set(
-            'general', 'homepage', self.homepage)
-        self.config_obj.set(
-            'general', 'icon', self.icon)
-        self.config_obj.set(
-            'general', 'name', self.name)
-        self.config_obj.set(
-            'general', 'plugin_dependencies', self.plugin_dependencies)
-        self.config_obj.set(
-            'general', 'qgisMaximumVersion', self.qgis_maximum_version)
-        self.config_obj.set(
-            'general', 'qgisMinimumVersion', self.qgis_minimum_version)
-        self.config_obj.set(
-            'general', 'repository', self.repository)
-        self.config_obj.set(
-            'general', 'tags', ', '.join(self.tags))
-        self.config_obj.set(
-            'general', 'tracker', self.tracker)
-        self.config_obj.set(
-            'general', 'version', self.version)
+        def save_section(name, dct):
+            for key in dct:
+                value = dct[key]
+                if value is not None:
+                    self.config_obj.set(
+                        name, key, value)
+
+        general = {
+            'about': self.about,
+            'author': self.author,
+            'category': self.category,
+            'changelog': self.changelog,
+            'deprecated': self.deprecated,
+            'description': self.description,
+            'email': self.email,
+            'experimental': self.experimental,
+            'hasProcessingProvider': self.has_processing_provider,
+            'homepage': self.homepage,
+            'icon': self.icon,
+            'name': self.name,
+            'plugin_dependencies': self.plugin_dependencies,
+            'qgisMaximumVersion': self.qgis_maximum_version,
+            'qgisMinimumVersion': self.qgis_minimum_version,
+            'repository': self.repository,
+            'tags': ', '.join(self.tags),
+            'tracker': self.tracker,
+            'version': self.version,
+        }
+        save_section('general', general)
 
         logger.debug("config object has been updated with metadata")
         return True
@@ -306,6 +298,7 @@ class PubPlugin(object):
 
     def write_metadata(self, out_file):
         """ Writes the metadata.txt file. """
+        logger.debug("writing metadata to %s", out_file)
 
         if not self.to_metadata():
             logger.debug("Will not write metadata to %s because "
@@ -337,7 +330,12 @@ class PubPlugin(object):
                     b_inside = True
                 elif b_inside:
                     if line.startswith('from ') and ' import ' in line:
-                        modules.append(line[5:line.find(' import ')].strip())
+                        candidate = line[5:line.find(' import ')].strip()
+                        if candidate.startswith('.'):
+                            candidate = candidate[1:]
+                        parts = candidate.split('.')
+                        if os.path.exists(os.path.join(self.source_path, parts[0])):
+                            modules.append(parts[0])
 
         logger.debug("parsed %s and found %d modules", init_path, len(modules))
         return modules
@@ -358,11 +356,8 @@ class PubPlugin(object):
         logger.debug("loading %d modules in %r", len(modules), path)
         result = []
         for module_name in modules:
-            if module_name.startswith('.'):
-                module_name = module_name[1:]
-            parts = module_name.split('.')
             m = PubModule(
-                    name=module_name, path=os.path.join(path, *parts))
+                    name=module_name, path=os.path.join(path, module_name))
             m.collect_py_files(source_py=source_py)
             result.append(m)
         logger.debug("created %d modules", len(result))
@@ -431,15 +426,28 @@ class PubPlugin(object):
         for file in include_ui.split("\n"):
             file = file.strip()
             if len(file) > 0:
-                file = os.path.join(path, )
+                file = os.path.join(path, file)
                 if os.path.isfile(file):
-                    result.append(file)
+                    result.append(PubQrc(file))
                 elif os.path.isdir(file):
                     for ui_file in os.listdir(file):
-                        if ui_file.endswith('.ui') or ui_file.endswith('.UI'):
+                        if ui_file.upper().endswith('.UI'):
                             result.append(PubUi(os.path.join(file, ui_file)))
                 else:
                     logger.error("Extra file does not exist: %s", file)
+
+        include_ui = self.config_obj.get('extra', 'ui-recursive', fallback='')
+        for file in include_ui.split("\n"):
+            file = file.strip()
+            if len(file) > 0:
+                file = os.path.join(path, file)
+                for root, dirs, files in os.walk(file):
+                    for ui_file in files:
+                        if ui_file.upper().endswith('.UI'):
+                            result.append(PubUi(os.path.join(root, ui_file)))
+                else:
+                    logger.error("Extra file does not exist: %s", file)
+
 
         logger.debug("found %d .ui files", len(result))
         return result
@@ -457,20 +465,30 @@ class PubPlugin(object):
         """
         logger.debug("loading .qrc files in %r", path)
         result = []
-        include_ui = self.config_obj.get('extra', 'qrc', fallback='')
 
+        include_ui = self.config_obj.get('extra', 'qrc', fallback='')
         for file in include_ui.split("\n"):
             file = file.strip()
             if len(file) > 0:
                 file = os.path.join(path, file)
                 if os.path.isfile(file):
-                    result.append(file)
+                    result.append(PubQrc(file))
                 elif os.path.isdir(file):
-                    for ui_file in os.listdir(file):
-                        if ui_file.endswith('.qrc') or ui_file.endswith('.QRC'):
-                            result.append(PubQrc(os.path.join(file, ui_file)))
+                    for qrc_file in os.listdir(file):
+                        if qrc_file.upper().endswith('.QRC'):
+                            result.append(PubQrc(os.path.join(file, qrc_file)))
                 else:
                     logger.error("Extra file does not exist: %s", file)
+
+        include_ui = self.config_obj.get('extra', 'qrc-recursive', fallback='')
+        for file in include_ui.split("\n"):
+            file = file.strip()
+            if len(file) > 0:
+                file = os.path.join(path, file)
+                for root, dirs, files in os.walk(file):
+                    for qrc_file in files:
+                        if qrc_file.upper().endswith('.QRC'):
+                            result.append(PubQrc(os.path.join(root, qrc_file)))
 
         logger.debug("found %d .qrc files", len(result))
         return result
@@ -528,6 +546,7 @@ class PubPlugin(object):
             has_files = False
             for _ in os.listdir(target):
                 has_files = True
+                break
 
             if has_files:
                 logger.debug("target exists and has files")
@@ -546,6 +565,14 @@ class PubPlugin(object):
                     raise ValueError
             else:
                 logger.debug("target exists but has no files")
+
+        self.write_metadata(os.path.join(target, "metadata.txt"))
+        shutil.copy(
+            os.path.join(self.source_path, "__init__.py"),
+            os.path.join(target, "__init__.py"))
+        shutil.copy(
+            os.path.join(self.source_path, "setup.py"),
+            os.path.join(target, "setup.py"))
 
         for file in self.collect_files_to_deploy():
             rel_path = os.path.relpath(file, self.source_path)
